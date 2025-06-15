@@ -45,10 +45,9 @@ If you want to run this project on your own machine, follow the steps below:
 **1. Clone the Repository**
 
 ```bash
-git clone [https://github.com/rohamshahmoradi/Ohm-Finder.git](https://github.com/rohamshahmoradi/Ohm-Finder.git)
+git clone https://github.com/rohamshahmoradi/Ohm-Finder.git
 cd Ohm-Finder
 ```
-> **Note**: Replace the URL with your own repository's URL if it's different.
 
 **2. Install Python Packages**
 
