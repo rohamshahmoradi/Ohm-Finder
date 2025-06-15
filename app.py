@@ -203,35 +203,61 @@ if st.session_state.results_calculated:
     min_error_series = st.session_state.series_results[0]['error'] if st.session_state.series_results else float('inf')
     min_error_parallel = st.session_state.parallel_results[0]['error'] if st.session_state.parallel_results else float('inf')
     
-    # --- NEW: Modern Summary Scorecard ---
+        # --- NEW: Modern Summary Scorecard ---
     st.markdown("##### Results Summary")
 
-    # Determine the winner
+    # Determine the winner and set up messages/flags
     winner_message = ""
+    is_series_winner = False
+    is_parallel_winner = False
+
+    # Check for valid results before comparing
     if min_error_series != float('inf') or min_error_parallel != float('inf'):
         if min_error_series < min_error_parallel:
             winner_message = "🏆 **Series Mode is More Accurate** for this target."
+            is_series_winner = True
         elif min_error_parallel < min_error_series:
             winner_message = "🏆 **Parallel Mode is More Accurate** for this target."
+            is_parallel_winner = True
         else:
             winner_message = "TIE: Both modes achieved the same top accuracy."
-    
+
     if winner_message:
         st.success(winner_message, icon="✅")
 
+    # Prepare display strings
+    series_val_str = f"{min_error_series:.3f}%" if min_error_series != float('inf') else "N/A"
+    parallel_val_str = f"{min_error_parallel:.3f}%" if min_error_parallel != float('inf') else "N/A"
+
     col1, col2 = st.columns(2)
     with col1:
-        with st.container(border=True):
-            if winner_message and "Series" in winner_message:
-                st.markdown("🏅 **Winner**")
-            st.metric("Best Series Error", f"{min_error_series:.3f}%" if min_error_series != float('inf') else "N/A")
+        if is_series_winner:
+            # Custom HTML for the golden winner card
+            st.markdown(f"""
+            <div style="padding: 1rem 1rem 1.2rem 1rem; border-radius: 0.5rem; border: 2px solid #173928;">
+                <p style="color: white; font-weight: bold; font-size: 0.875rem; opacity: 0.9; margin: 0.25rem 0;">Best Series Error</p>
+                <p style="color: white; font-weight: bold; font-size: 1.75rem; margin: 0;">{series_val_str}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Standard container for non-winner
+            with st.container(border=True):
+                st.metric("Best Series Error", series_val_str)
 
     with col2:
-        with st.container(border=True):
-            if winner_message and "Parallel" in winner_message:
-                st.markdown("🏅 **Winner**")
-            st.metric("Best Parallel Error", f"{min_error_parallel:.3f}%" if min_error_parallel != float('inf') else "N/A")
-    
+        if is_parallel_winner:
+            # Custom HTML for the golden winner card
+            st.markdown(f"""
+            <div style="padding: 1rem 1rem 1.2rem 1rem; border-radius: 0.5rem; border: 2px solid #173928;">
+                <p style="color: white; font-weight: bold; font-size: 0.875rem; opacity: 0.9; margin: 0.25rem 0;">Best Parallel Error</p>
+                <p style="color: white; font-weight: bold; font-size: 1.75rem; margin: 0;">{parallel_val_str}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Standard container for non-winner
+            with st.container(border=True):
+                st.metric("Best Parallel Error", parallel_val_str)
+
     st.divider()
 
     # --- Revert to st.tabs for result display ---
