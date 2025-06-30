@@ -5,8 +5,6 @@ from typing import List, Tuple, Iterator, Dict, Any, Optional, Union
 from datetime import datetime
 
 # --- Page Configuration ---
-# Removed the 'theme' parameter for broader Streamlit version compatibility.
-# Users can select the theme from the app's settings menu.
 st.set_page_config(
     page_title="Professional Resistor Calculator",
     page_icon="🛠️",
@@ -32,20 +30,19 @@ RESULTS_INCREMENT = 5
 
 # --- Helper Functions ---
 
-def parse_resistance(value: str) -> Optional[float]:
-    if not value: return None
-    pattern = r"^\s*(\d*\.?\d+)\s*([kmg])?\s*$"
-    match = re.match(pattern, value.strip(), re.IGNORECASE)
-    if not match: return None
-    number_str, prefix = match.groups()
-    number = float(number_str)
-    PREFIXES = {"k": 10**3, "m": 10**6, "g": 10**9}
-    multiplier = PREFIXES.get(prefix.lower() if prefix else "", 1)
-    return number * multiplier
-
+# --- MODIFIED FUNCTION for more precise display ---
 def format_resistance(value: float) -> str:
-    if value >= 1_000_000: return f"{value / 1_000_000:.2f}".replace(".00", "") + " MΩ"
-    if value >= 1_000: return f"{value / 1_000:.2f}".replace(".00", "") + " kΩ"
+    """
+    Formats the resistance value with smart precision.
+    - Displays up to 3 decimal places for kΩ and MΩ.
+    - Removes trailing unnecessary zeros.
+    """
+    if value >= 1_000_000:
+        val_str = f"{value / 1_000_000:.3f}".rstrip('0').rstrip('.')
+        return f"{val_str} MΩ"
+    if value >= 1_000:
+        val_str = f"{value / 1_000:.3f}".rstrip('0').rstrip('.')
+        return f"{val_str} kΩ"
     return f"{int(value)} Ω"
 
 def get_resistor_colors(value: float) -> List[str]:
@@ -130,38 +127,30 @@ def display_results_cards(results: List[Dict], mode: str):
             summary = op_symbol.join([format_resistance(r) for r in sorted(list(res['combo']))])
             st.markdown(f"#### {summary}")
 
-            if mode == 'series':
-                st.graphviz_chart(generate_circuit_dot(res['combo'], mode, is_best), use_container_width=True)
-                st.divider()
+            def show_metrics_and_breakdown(error_val, value_val, combo_val):
                 metric_cols = st.columns(2)
-                metric_cols[0].metric("Resulting Value", format_resistance(res['value']))
-                metric_cols[1].metric("Error", f"{res['error']:.3f}%")
+                metric_cols[0].metric("Resulting Value", format_resistance(value_val))
+                metric_cols[1].metric("Error", f"{error_val:.5f}%")
                 
                 st.markdown("**Component Breakdown:**")
-                for r_val in sorted(list(res['combo'])):
+                for r_val in sorted(list(combo_val)):
                     comp_cols = st.columns([2, 1])
                     with comp_cols[0]:
                         st.markdown(f"<p style='font-size: 1.1em; text-align: left; margin-top: 10px;'>{format_resistance(r_val)}</p>", unsafe_allow_html=True)
                     with comp_cols[1]:
                         st.markdown(f"<div style='text-align: right;'>{color_bands_html(get_resistor_colors(r_val))}</div>", unsafe_allow_html=True)
-                    st.markdown('<hr style="margin: 0.5rem 0;" />', unsafe_allow_html=True)
+                    st.divider()
 
+            if mode == 'series':
+                st.graphviz_chart(generate_circuit_dot(res['combo'], mode, is_best), use_container_width=True)
+                st.divider()
+                show_metrics_and_breakdown(res['error'], res['value'], res['combo'])
             else: # mode == 'parallel'
                 main_cols = st.columns([2, 3])
                 with main_cols[0]:
                     st.graphviz_chart(generate_circuit_dot(res['combo'], mode, is_best), use_container_width=True)
                 with main_cols[1]:
-                    metric_cols = st.columns(2)
-                    metric_cols[0].metric("Resulting Value", format_resistance(res['value']))
-                    metric_cols[1].metric("Error", f"{res['error']:.3f}%")
-                    st.markdown("**Component Breakdown:**")
-                    for r_val in sorted(list(res['combo'])):
-                        comp_cols = st.columns([2, 1])
-                        with comp_cols[0]:
-                            st.markdown(f"<p style='font-size: 1.1em; text-align: left; margin-top: 10px;'>{format_resistance(r_val)}</p>", unsafe_allow_html=True)
-                        with comp_cols[1]:
-                            st.markdown(f"<div style='text-align: right;'>{color_bands_html(get_resistor_colors(r_val))}</div>", unsafe_allow_html=True)
-                        st.divider()
+                    show_metrics_and_breakdown(res['error'], res['value'], res['combo'])
 
     if len(results) > st.session_state.num_to_display:
         if st.button(f"Show More ({mode.title()})", key=f"more_{mode}", use_container_width=True):
@@ -172,7 +161,7 @@ def display_results_cards(results: List[Dict], mode: str):
 with st.sidebar:
     st.title("About & Settings")
     st.info("""
-        **Professional Resistor Calculator v6.2**
+        **Professional Resistor Calculator v6.3**
         
         Developed by **Amin Fallah** & **Roham Shahmoradi**.
     """)
@@ -247,8 +236,8 @@ if st.session_state.results_calculated:
     if winner_message:
         st.success(winner_message, icon="✅")
     
-    series_val_str = f"{min_error_series:.3f}%" if min_error_series != float('inf') else "N/A"
-    parallel_val_str = f"{min_error_parallel:.3f}%" if min_error_parallel != float('inf') else "N/A"
+    series_val_str = f"{min_error_series:.5f}%" if min_error_series != float('inf') else "N/A"
+    parallel_val_str = f"{min_error_parallel:.5f}%" if min_error_parallel != float('inf') else "N/A"
 
     col1, col2 = st.columns(2)
     with col1:
