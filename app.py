@@ -28,15 +28,22 @@ STANDARD_RESISTORS = sorted([j * 10**i for i in range(7) for j in E12_VALUES])
 MAX_RESISTORS_IN_COMBO = 4
 RESULTS_INCREMENT = 5
 
-# --- Helper Functions ---
+# --- Helper Functions (Defined first) ---
 
-# --- MODIFIED FUNCTION for more precise display ---
+def parse_resistance(value: str) -> Optional[float]:
+    """Parses a resistance string (e.g., '4.7k') into a float."""
+    if not value: return None
+    pattern = r"^\s*(\d*\.?\d+)\s*([kmg])?\s*$"
+    match = re.match(pattern, value.strip(), re.IGNORECASE)
+    if not match: return None
+    number_str, prefix = match.groups()
+    number = float(number_str)
+    PREFIXES = {"k": 10**3, "m": 10**6, "g": 10**9}
+    multiplier = PREFIXES.get(prefix.lower() if prefix else "", 1)
+    return number * multiplier
+
 def format_resistance(value: float) -> str:
-    """
-    Formats the resistance value with smart precision.
-    - Displays up to 3 decimal places for kΩ and MΩ.
-    - Removes trailing unnecessary zeros.
-    """
+    """Formats the resistance value with smart precision."""
     if value >= 1_000_000:
         val_str = f"{value / 1_000_000:.3f}".rstrip('0').rstrip('.')
         return f"{val_str} MΩ"
@@ -46,6 +53,7 @@ def format_resistance(value: float) -> str:
     return f"{int(value)} Ω"
 
 def get_resistor_colors(value: float) -> List[str]:
+    """Calculates the color bands for a given resistor value."""
     COLOR_CODES = {0: 'black', 1: 'brown', 2: 'red', 3: 'orange', 4: 'yellow', 5: 'green', 6: 'blue', 7: 'purple', 8: 'gray', 9: 'white'}
     if value == 0: return ['black', 'black', 'black']
     try:
@@ -58,9 +66,11 @@ def get_resistor_colors(value: float) -> List[str]:
     except (IndexError, ValueError): return ['black', 'black', 'black']
 
 def color_bands_html(colors: List[str]) -> str:
+    """Generates HTML for displaying color bands."""
     return "".join(f'<div style="background-color:{c}; width:15px; height:40px; display:inline-block; border:1.5px solid #333; margin-right:2px; border-radius: 4px; vertical-align: middle;"></div>' for c in colors)
 
 def calculate_combination_value(resistors: Tuple[float], mode: str) -> float:
+    """Calculates the total resistance for a given combination."""
     if not resistors: return 0
     if mode == 'series': return sum(resistors)
     if mode == 'parallel':
@@ -69,6 +79,7 @@ def calculate_combination_value(resistors: Tuple[float], mode: str) -> float:
     return 0
 
 def find_combinations(target: float, tolerance: float, mode: str, num_resistors_option: Union[int, str]) -> Iterator[Tuple[float, ...]]:
+    """Finds all resistor combinations that meet the target criteria."""
     search_space = [r for r in STANDARD_RESISTORS if r <= target * (1 + tolerance)] if mode == 'series' else STANDARD_RESISTORS
     
     if num_resistors_option == "Automatic":
@@ -83,6 +94,7 @@ def find_combinations(target: float, tolerance: float, mode: str, num_resistors_
                 yield combo
 
 def generate_circuit_dot(combo: Tuple[float, ...], mode: str, is_best: bool) -> str:
+    """Generates a Graphviz DOT string for the circuit diagram."""
     border_color = "#00b4d8" if is_best else "#adb5bd"
     node_color = "#ade8f4" if is_best else "#dee2e6"
     theme_neutral_font_color = "#6c757d"
@@ -113,6 +125,7 @@ def generate_circuit_dot(combo: Tuple[float, ...], mode: str, is_best: bool) -> 
     return "\n".join(dot_lines)
 
 def display_results_cards(results: List[Dict], mode: str):
+    """Displays the result cards with correct layout and precision."""
     if not results:
         st.info(f"No suitable {mode} combinations were found.")
         return
@@ -157,7 +170,7 @@ def display_results_cards(results: List[Dict], mode: str):
             st.session_state.num_to_display += RESULTS_INCREMENT
             st.rerun()
 
-# --- UI Layout ---
+# --- UI Layout (Main App Body) ---
 with st.sidebar:
     st.title("About & Settings")
     st.info("""
@@ -188,6 +201,7 @@ with st.container(border=True):
             help="Select the number of resistors to combine. 'Automatic' finds the best result using 1 to 4 resistors."
         )
 
+    # --- Calculation Logic inside the button click ---
     if st.button('Find Combinations', type="primary", use_container_width=True):
         target_val = parse_resistance(target_str)
         if target_val is None:
