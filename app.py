@@ -5,6 +5,8 @@ from typing import List, Tuple, Iterator, Dict, Any, Optional, Union
 from datetime import datetime
 
 # --- Page Configuration ---
+# Removed the 'theme' parameter for broader Streamlit version compatibility.
+# Users can select the theme from the app's settings menu.
 st.set_page_config(
     page_title="Professional Resistor Calculator",
     page_icon="🛠️",
@@ -86,15 +88,30 @@ def find_combinations(target: float, tolerance: float, mode: str, num_resistors_
 def generate_circuit_dot(combo: Tuple[float, ...], mode: str, is_best: bool) -> str:
     border_color = "#00b4d8" if is_best else "#adb5bd"
     node_color = "#ade8f4" if is_best else "#dee2e6"
-    dot_lines = ['digraph G {', '    rankdir=LR;', '    bgcolor="transparent";', f'    node [shape=box, style="filled", fillcolor="{node_color}", fontcolor="black", color="{border_color}", penwidth=1.5];', f'    edge [color="{border_color}"];']
+    theme_neutral_font_color = "#6c757d"
+    
+    dot_lines = [
+        'digraph G {',
+        '    rankdir=LR;',
+        '    bgcolor="transparent";',
+        f'   node [shape=box, style="filled", fillcolor="{node_color}", fontcolor="black", color="{border_color}", penwidth=1.5];',
+        f'   edge [color="{border_color}"];'
+    ]
+    
     resistor_labels = {f'R{i+1}': format_resistance(val) for i, val in enumerate(combo)}
+    in_out_style = f'fontcolor="{theme_neutral_font_color}" style=plaintext'
+
     if mode == 'series':
         path = " -> ".join(resistor_labels.keys())
-        dot_lines.append(f'    "In" [fontcolor="#333", style=plaintext]; "Out" [fontcolor="#333", style=plaintext]; "In" -> {path} -> "Out";')
+        dot_lines.append(f'    "In" [{in_out_style}]; "Out" [{in_out_style}]; "In" -> {path} -> "Out";')
     elif mode == 'parallel':
-        dot_lines.append('    In [shape=point, label=""]; Out [shape=point, label=""];')
-        for r_name in resistor_labels.keys(): dot_lines.append(f'    In -> {r_name} -> Out;')
-    for r_name, r_label in resistor_labels.items(): dot_lines.append(f'    {r_name} [label="{r_label}"];')
+        dot_lines.append(f'    In [shape=point, label=""]; Out [shape=point, label=""];')
+        for r_name in resistor_labels.keys():
+            dot_lines.append(f'    In -> {r_name} -> Out;')
+    
+    for r_name, r_label in resistor_labels.items():
+        dot_lines.append(f'    {r_name} [label="{r_label}", fontcolor="black"];')
+
     dot_lines.append('}')
     return "\n".join(dot_lines)
 
@@ -113,11 +130,9 @@ def display_results_cards(results: List[Dict], mode: str):
             summary = op_symbol.join([format_resistance(r) for r in sorted(list(res['combo']))])
             st.markdown(f"#### {summary}")
 
-            main_cols = st.columns([2, 3])
-            with main_cols[0]:
+            if mode == 'series':
                 st.graphviz_chart(generate_circuit_dot(res['combo'], mode, is_best), use_container_width=True)
-            
-            with main_cols[1]:
+                st.divider()
                 metric_cols = st.columns(2)
                 metric_cols[0].metric("Resulting Value", format_resistance(res['value']))
                 metric_cols[1].metric("Error", f"{res['error']:.3f}%")
@@ -129,7 +144,24 @@ def display_results_cards(results: List[Dict], mode: str):
                         st.markdown(f"<p style='font-size: 1.1em; text-align: left; margin-top: 10px;'>{format_resistance(r_val)}</p>", unsafe_allow_html=True)
                     with comp_cols[1]:
                         st.markdown(f"<div style='text-align: right;'>{color_bands_html(get_resistor_colors(r_val))}</div>", unsafe_allow_html=True)
-                    st.divider()
+                    st.markdown('<hr style="margin: 0.5rem 0;" />', unsafe_allow_html=True)
+
+            else: # mode == 'parallel'
+                main_cols = st.columns([2, 3])
+                with main_cols[0]:
+                    st.graphviz_chart(generate_circuit_dot(res['combo'], mode, is_best), use_container_width=True)
+                with main_cols[1]:
+                    metric_cols = st.columns(2)
+                    metric_cols[0].metric("Resulting Value", format_resistance(res['value']))
+                    metric_cols[1].metric("Error", f"{res['error']:.3f}%")
+                    st.markdown("**Component Breakdown:**")
+                    for r_val in sorted(list(res['combo'])):
+                        comp_cols = st.columns([2, 1])
+                        with comp_cols[0]:
+                            st.markdown(f"<p style='font-size: 1.1em; text-align: left; margin-top: 10px;'>{format_resistance(r_val)}</p>", unsafe_allow_html=True)
+                        with comp_cols[1]:
+                            st.markdown(f"<div style='text-align: right;'>{color_bands_html(get_resistor_colors(r_val))}</div>", unsafe_allow_html=True)
+                        st.divider()
 
     if len(results) > st.session_state.num_to_display:
         if st.button(f"Show More ({mode.title()})", key=f"more_{mode}", use_container_width=True):
@@ -137,17 +169,15 @@ def display_results_cards(results: List[Dict], mode: str):
             st.rerun()
 
 # --- UI Layout ---
-
 with st.sidebar:
     st.title("About & Settings")
     st.info("""
-        **Professional Resistor Calculator v6.1**
+        **Professional Resistor Calculator v6.2**
         
         Developed by **Amin Fallah** & **Roham Shahmoradi**.
     """)
     st.number_input(
-        'Initial results to show:',
-        min_value=3, max_value=50, value=5, step=1,
+        'Initial results to show:', min_value=3, max_value=50, value=5, step=1,
         key='num_to_display_setting',
     )
     st.write("---")
@@ -165,9 +195,7 @@ with st.container(border=True):
         tolerance_percent = st.slider('Allowed Tolerance (%):', 0.1, 20.0, 1.0, 0.1)
     with col3:
         num_resistors_option = st.selectbox(
-            'Number of Resistors:',
-            options=["Automatic", 1, 2, 3, 4],
-            index=0,
+            'Number of Resistors:', options=["Automatic", 1, 2, 3, 4], index=0,
             help="Select the number of resistors to combine. 'Automatic' finds the best result using 1 to 4 resistors."
         )
 
@@ -182,7 +210,6 @@ with st.container(border=True):
         else:
             with st.spinner("Calculating all possible combinations..."):
                 tolerance = tolerance_percent / 100
-                
                 def process_results(combos: List, mode: str) -> List[Dict[str, Any]]:
                     results = []
                     for combo in set(combos):
@@ -190,7 +217,6 @@ with st.container(border=True):
                         error = abs(val - target_val) / target_val * 100
                         results.append({"combo": combo, "value": val, "error": error})
                     return sorted(results, key=lambda x: (x['error'], len(x['combo'])))
-
                 st.session_state.series_results = process_results(list(find_combinations(target_val, tolerance, 'series', num_resistors_option)), 'series')
                 st.session_state.parallel_results = process_results(list(find_combinations(target_val, tolerance, 'parallel', num_resistors_option)), 'parallel')
                 st.session_state.num_to_display = st.session_state.num_to_display_setting
@@ -199,19 +225,15 @@ with st.container(border=True):
 # --- Results Section ---
 if st.session_state.results_calculated:
     st.header("2. Calculation Results", divider='rainbow')
-
     min_error_series = st.session_state.series_results[0]['error'] if st.session_state.series_results else float('inf')
     min_error_parallel = st.session_state.parallel_results[0]['error'] if st.session_state.parallel_results else float('inf')
     
-        # --- NEW: Modern Summary Scorecard ---
     st.markdown("##### Results Summary")
-
-    # Determine the winner and set up messages/flags
-    winner_message = ""
+    
     is_series_winner = False
     is_parallel_winner = False
-
-    # Check for valid results before comparing
+    winner_message = ""
+    
     if min_error_series != float('inf') or min_error_parallel != float('inf'):
         if min_error_series < min_error_parallel:
             winner_message = "🏆 **Series Mode is More Accurate** for this target."
@@ -221,51 +243,44 @@ if st.session_state.results_calculated:
             is_parallel_winner = True
         else:
             winner_message = "TIE: Both modes achieved the same top accuracy."
-
+    
     if winner_message:
         st.success(winner_message, icon="✅")
-
-    # Prepare display strings
+    
     series_val_str = f"{min_error_series:.3f}%" if min_error_series != float('inf') else "N/A"
     parallel_val_str = f"{min_error_parallel:.3f}%" if min_error_parallel != float('inf') else "N/A"
 
     col1, col2 = st.columns(2)
     with col1:
         if is_series_winner:
-            # Custom HTML for the golden winner card
             st.markdown(f"""
-            <div style="padding: 1rem 1rem 1.2rem 1rem; border-radius: 0.5rem; border: 2px solid #173928;">
-                <p style="color: white; font-weight: bold; font-size: 0.875rem; opacity: 0.9; margin: 0.25rem 0;">Best Series Error</p>
-                <p style="color: white; font-weight: bold; font-size: 1.75rem; margin: 0;">{series_val_str}</p>
+            <div style="border: 2px solid #28a745; border-radius: 0.5rem; padding: 1rem;">
+                <div style="font-size: 0.875rem; opacity: 0.7;">Best Series Error</div>
+                <div style="font-size: 1.75rem; font-weight: bold;">{series_val_str}</div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Standard container for non-winner
             with st.container(border=True):
                 st.metric("Best Series Error", series_val_str)
-
+    
     with col2:
         if is_parallel_winner:
-            # Custom HTML for the golden winner card
             st.markdown(f"""
-            <div style="padding: 1rem 1rem 1.2rem 1rem; border-radius: 0.5rem; border: 2px solid #173928;">
-                <p style="color: white; font-weight: bold; font-size: 0.875rem; opacity: 0.9; margin: 0.25rem 0;">Best Parallel Error</p>
-                <p style="color: white; font-weight: bold; font-size: 1.75rem; margin: 0;">{parallel_val_str}</p>
+            <div style="border: 2px solid #28a745; border-radius: 0.5rem; padding: 1rem;">
+                <div style="font-size: 0.875rem; opacity: 0.7;">Best Parallel Error</div>
+                <div style="font-size: 1.75rem; font-weight: bold;">{parallel_val_str}</div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Standard container for non-winner
             with st.container(border=True):
                 st.metric("Best Parallel Error", parallel_val_str)
 
     st.divider()
 
-    # --- Revert to st.tabs for result display ---
     tab_series, tab_parallel = st.tabs([f"**Series ({len(st.session_state.series_results)} combinations)**", f"**Parallel ({len(st.session_state.parallel_results)} combinations)**"])
 
     with tab_series:
         display_results_cards(st.session_state.series_results, 'series')
-    
     with tab_parallel:
         display_results_cards(st.session_state.parallel_results, 'parallel')
 
